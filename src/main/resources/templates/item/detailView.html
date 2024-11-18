@@ -61,7 +61,7 @@
         </div>
         <!--이미지들-->
         <div th:each="itemImg:${itemDTO.itemImgDTOList}" class="text-center">
-            <img th:if="${not #strings.isEmpty(itemImg.imgUrl)}" th:src="${itemImg.imgUrl}"
+            <img th:if="${not #strings.isEmpty(itemImg.imgUrl)}" th:src="'https://spring-carimg-bucket.s3.ap-northeast-2.amazonaws.com/'+${itemImg.oriImgName}"
                  class="reounded mbg-15" width="1000"/>
         </div>
     </th:block>
