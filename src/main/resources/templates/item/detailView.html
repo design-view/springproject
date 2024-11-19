@@ -6,7 +6,7 @@
         <input type="hidden" id="itemId" th:value="${itemDTO.id}"/>
         <div class="d-flex">
             <div class="repImgDiv">
-                <img th:src="${itemDTO.itemImgDTOList[0].imgUrl}"
+                <img th:src="'https://spring-carimg-bucket.s3.ap-northeast-2.amazonaws.com/'+${itemDTO.itemImgDTOList[0].oriImgName}"
                      class="reounde repImg"/>
             </div>
             <div class="wh50">
