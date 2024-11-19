@@ -50,10 +50,13 @@ public class SecurityConfig {
         http.csrf(cs -> cs.disable());
 
         // 세션 관리 설정: 세션을 유지하도록 설정
+        //http.sessionManagement(session -> session
+              //  .sessionCreationPolicy(SessionCreationPolicy.ALWAYS)
+       // );
+         // 세션 관리
         http.sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.ALWAYS)
+                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
         );
-
         // 쿠키 설정: SameSite 설정을 None으로 설정하고, HTTPS 요구 사항 비활성화
         http.requiresChannel(channel -> channel.anyRequest().requiresInsecure());
 
