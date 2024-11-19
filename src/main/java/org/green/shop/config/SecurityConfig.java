@@ -29,6 +29,13 @@ public class SecurityConfig {
         //loginPage("") : 사용자로그인페이지
         //defaultSuccessUrl("/") : 로그인시 이동할 페이지 지정
         //loginProcessingUrl("/loginProc") : 사용자로그인페이지 form action속성값
+        //경로 권한지정
+        http.authorizeHttpRequests((auth)->auth
+                .requestMatchers("/","/login_page","/login/error","/join_page","/emailcheck","/join","/item/**","/images/**").permitAll()
+                .requestMatchers("/admin/**").hasRole("ADMIN")
+                .requestMatchers("/js/**","/css/**","/img/**").permitAll()
+                .anyRequest().authenticated()
+        );
         http.formLogin(login->login.loginPage("/login_page")
                 .defaultSuccessUrl("/",true)
                 .loginProcessingUrl("/loginProc")
@@ -37,13 +44,7 @@ public class SecurityConfig {
         http.logout((auth)->auth.logoutUrl("/logout")
                 .logoutSuccessUrl("/")
         );
-        //경로 권한지정
-        http.authorizeHttpRequests((auth)->auth
-                .requestMatchers("/","/login_page","/login/error","/join_page","/emailcheck","/join","/item/**","/images/**").permitAll()
-                .requestMatchers("/admin/**").hasRole("ADMIN")
-                .requestMatchers("/js/**","/css/**","/img/**").permitAll()
-                .anyRequest().authenticated()
-        );
+        
 
         // CSRF 토큰 비활성화
         http.csrf(cs -> cs.disable());
