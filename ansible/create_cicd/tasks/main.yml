@@ -1,0 +1,88 @@
+---
+# tasks file for create_cicd
+
+#젠킨스 EC2생성
+    - name: create jenkins-ec2
+      amazon.aws.ec2_instance:
+        name: "team4-jenkins-instance"
+        state: present
+        key_name: "project4_key"
+        instance_type: t3.micro
+        image_id: ami-042e76978adeb8c48 #ubuntu image
+        region: "{{ region_name }}"
+        network:
+          assign_public_ip: false
+          groups:
+            - "{{ httpaccept_id }}"
+            - "{{ sshaccept_id }}"
+        vpc_subnet_id: "{{ pri2a_id }}"
+        wait: yes
+        wait_timeout: 60
+        tags:
+          Name: team4-jenkins-instance5
+        user_data: "{{ lookup('file','/home/ec2-user/role-ansible/user_data/jenkins_user_data.sh') }}"
+        volumes:
+          - device_name: /dev/sda1
+            ebs:
+              volume_size: 30
+              delete_on_termination: true
+        metadata_options:
+          http_endpoint: enabled
+          http_tokens: required
+          http_put_response_hop_limit: 2
+      register: jenkins_result
+      tags: cicd_ins
+
+    - name: Debug Jenkins
+      debug:
+        var: jenkins_result.instances[0].instance_id
+      tags: cicd_ins
+
+ #젠킨스 대상그룹 생성
+    - name: Create jenkins target Group
+      community.aws.elb_target_group:
+        name: team4-cicd-group
+        protocol: http
+        port: 80
+        vpc_id: "{{ vpcid}}"
+        state: present
+        region: "{{ region_name }}"
+        wait: true
+      register: jen_tg_result
+      tags: cicd_group
+    - name: debug jtg
+      debug:
+        var: jen_tg_result
+      tags: cicd_group
+
+# 타겟  변수에 담기
+# 기존 YAML 파일 읽기
+# 타겟  변수에 담기
+# 기존 YAML 파일 읽기
+    - name: Read existing VPC ID from YAML file
+      slurp:
+        src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+      register: slurped_file
+      ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+    - name: Set existing VPC data from slurped file
+      set_fact:
+        existing_vpc_data: >-
+          {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+            {{ slurped_file['content'] | b64decode | from_yaml }}
+          {%- else -%}
+            {}
+          {%- endif -%}
+      when: slurped_file is defined
+  # VPC ID를 덮어씌우기 위한 데이터 준비
+    - name: Prepare VPC data
+      set_fact:
+        vpc_data: "{{ existing_vpc_data | combine({'jentg_arn': jen_tg_result.target_group_arn}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+    - name: Save VPC ID to YAML file
+      copy:
+        content: "{{ vpc_data | to_nice_yaml }}"
+        dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+        mode: '0644'  # 파일 권한 설정
