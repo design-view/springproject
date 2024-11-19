@@ -1,0 +1,51 @@
+---
+- hosts: localhost
+  gather_facts: no
+  become: yes
+  vars_files:
+    - vars/aws_key.yml
+    - vars/globalvar.yml
+    - vars/resultvar.yml
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+#이부분
+
+
+  tasks:
+    - name: Run create_network role
+      ansible.builtin.include_role:
+        name: create_network
+      when: run_network | default(false)
+
+    - name: Run create_security role
+      ansible.builtin.include_role:
+        name: create_security
+      when: run_security | default(false)
+
+    - name: Run create_shop role
+      ansible.builtin.include_role:
+        name: create_shop
+      when: run_shop | default(false)
+
+
+    - name: Run create_bastion role
+      ansible.builtin.include_role:
+        name: create_bastion
+      when: run_bastion | default(false)
+
+    - name: Run create_cicd role
+      ansible.builtin.include_role:
+        name: create_cicd
+      when: run_cicd | default(false)
+
+
+    - name: Run create_alb role
+      ansible.builtin.include_role:
+        name: create_alb
+      when: run_alb | default(false)
+
+
+    - name: print finish role play
+      ansible.builtin.debug:
+        msg: "Finish role play"
