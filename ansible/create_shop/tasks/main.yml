@@ -1,0 +1,309 @@
+---
+#정책 생성 S3
+- name: Create team4 policy
+  amazon.aws.iam_managed_policy:
+    policy_name: "team4-s3-policy"
+    policy: "{{ lookup('file', '/home/ec2-user/role-ansible/json/policy.json') }}"
+    state: present
+  register: s3_policy_result
+  tags: s3_policy
+
+- name: debug policy
+  debug:
+     var: s3_policy_result
+  tags: s3_policy
+
+# 기존 YAML 파일 읽기
+- name: Read existing VPC ID from YAML file
+  slurp:
+    src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+  register: slurped_file
+  ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+- name: Set existing VPC data from slurped file
+  set_fact:
+    existing_vpc_data: >-
+      {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+        {{ slurped_file['content'] | b64decode | from_yaml }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  when: slurped_file is defined
+
+# VPC ID를 덮어씌우기 위한 데이터 준비
+- name: Prepare VPC data
+  set_fact:
+    vpc_data: "{{ existing_vpc_data | combine({'s3policy_arn': s3_policy_result.policy.arn}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+- name: Save VPC ID to YAML file
+  copy:
+    content: "{{ vpc_data | to_nice_yaml }}"
+    dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+    mode: '0644'  # 파일 권한 설정
+
+
+#역할 생성 S3
+- name: Create role
+  amazon.aws.iam_role:
+    name: team4-s3-role
+    managed_policies:
+      - "{{ s3policy_arn }}"
+    state: present
+    assume_role_policy_document: "{{ lookup('file','/home/ec2-user/role-ansible/json/role.json') }}"
+    state: present
+  register: s3_role_result
+  tags: s3_policy
+
+
+#타겟 ec2생성
+- name: create target-ec2
+  amazon.aws.ec2_instance:
+    name: "team4-shop-instance"
+    state: present
+    key_name: "project4_key"
+    instance_type: t2.micro
+    image_id: ami-042e76978adeb8c48 #ubuntu image
+    region: "{{ region_name }}"
+    network:
+      assign_public_ip: true
+      groups:
+        - "{{ httpaccept_id }}"
+        - "{{ sshaccept_id }}"
+    vpc_subnet_id: "{{ pub2a_id }}"
+    wait: yes
+    wait_timeout: 60
+    tags:
+      Name: team4-shop-instance
+    user_data: "{{ lookup('file','/home/ec2-user/role-ansible/user_data/shop_user_data.sh') }}"
+    metadata_options:
+      http_endpoint: enabled
+      http_tokens: required
+      http_put_response_hop_limit: 2
+  register: target_result
+
+- name: Display instance detail
+  debug:
+    var: target_result.instances
+
+
+# 이미지가 이미 존재하는지 확인
+- name: Check existing image
+  amazon.aws.ec2_ami_info:
+    filters:
+      "name": "team4-target-ec2-image"
+    region: "{{ region_name }}"
+  register: existing_image
+  tags: img
+
+# 이미지가 존재하지 않으면 새 이미지 생성
+- name: Register target-ec2 image if not existing
+  amazon.aws.ec2_ami:
+    instance_id: "{{ target_result.instances[0].instance_id }}"
+    wait: true
+    name: team4-target-ec2-image
+    state: present
+    region: "{{ region_name }}"
+    delete_snapshot: true
+    tags:
+      Name: team4-target-ec2-image
+  register: image_creation_result
+  when: existing_image.images | length == 0
+  tags: img
+# 기존 이미지가 존재하거나 새로 생성된 이미지의 결과를 단일 변수에 저장
+- name: Set image_result to existing or new image
+  set_fact:
+    image_result: "{{ existing_image.images[0] if existing_image.images | length > 0 else image_creation_result.image }}"
+  tags: img
+
+# 최종 이미지 결과 확인
+- name: Debug image result
+  debug:
+    var: image_result
+  tags: img
+
+# 이미지 id변수에 담기
+# 기존 YAML 파일 읽기
+- name: Read existing VPC ID from YAML file
+  slurp:
+    src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+  register: slurped_file
+  ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+- name: Set existing VPC data from slurped file
+  set_fact:
+    existing_vpc_data: >-
+      {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+        {{ slurped_file['content'] | b64decode | from_yaml }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  when: slurped_file is defined
+# VPC ID를 덮어씌우기 위한 데이터 준비
+- name: Prepare VPC data
+  set_fact:
+    vpc_data: "{{ existing_vpc_data | combine({'image_id': image_result.image_id}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+- name: Save VPC ID to YAML file
+  copy:
+    content: "{{ vpc_data | to_nice_yaml }}"
+    dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+    mode: '0644'  # 파일 권한 설정
+
+
+#템플릿 생성
+- name: Create launch template
+  community.aws.ec2_launch_template:
+    name: team4-shop-template
+    image_id: "{{ image_id }}"
+    key_name: project4_key
+    instance_type: t2.micro
+    security_group_ids:
+      - "{{ httpaccept_id }}"
+      - "{{ sshaccept_id }}"
+    tags:
+      Name: team4-shop-template
+    #정책 넣어주기
+    iam_instance_profile: team4-s3-role
+    state: present
+    region: "{{ region_name }}"
+    default_version: "latest"
+    state: present
+  register: lt_result
+  tags: tamplate
+
+- name: Debug lt
+  debug:
+    var: lt_result
+  tags: tamplate
+
+# 템플릿 id 변수에 담기
+# 기존 YAML 파일 읽기
+- name: Read existing VPC ID from YAML file
+  slurp:
+    src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+  register: slurped_file
+  ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+- name: Set existing VPC data from slurped file
+  set_fact:
+    existing_vpc_data: >-
+      {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+        {{ slurped_file['content'] | b64decode | from_yaml }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  when: slurped_file is defined
+# VPC ID를 덮어씌우기 위한 데이터 준비
+- name: Prepare VPC data
+  set_fact:
+    vpc_data: "{{ existing_vpc_data | combine({'template_id': lt_result.template.launch_template_id}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+- name: Save VPC ID to YAML file
+  copy:
+    content: "{{ vpc_data | to_nice_yaml }}"
+    dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+    mode: '0644'  # 파일 권한 설정
+
+#오토스케일링 생성
+- name: Create ASG
+  amazon.aws.autoscaling_group:
+    name: team4-shop-asg
+    availability_zones: ['ap-northeast-2a','ap-northeast-2c']
+    launch_template:
+      launch_template_id: "{{ template_id }}"
+      version: '$Latest'
+    min_size: 2
+    max_size: 2
+    desired_capacity: 2
+    vpc_zone_identifier:
+      - "{{ pri2a_id }}"
+      - "{{ pri2c_id }}"
+    tags:
+      - Name: team4-shop-asg
+        propagate_at_launch: yes
+    state: present
+    region: "{{ region_name }}"
+  register: asg_result
+  tags: sh_asg
+
+- name: debug asg
+  debug:
+    var: asg_result
+  tags: sh_asg
+
+#타켓 대상그룹 생성
+- name: Create asg Target Group
+  community.aws.elb_target_group:
+    name: team4-shop-group
+    protocol: http
+    port: 80
+    vpc_id: "{{ vpcid}}"
+    state: present
+    region: "{{ region_name }}"
+    wait: true
+  register: asg_tg_result
+  tags: sh_group
+
+- name: debug tg result
+  debug:
+    var: asg_tg_result
+  tags: sh_group
+
+# 타겟  변수에 담기
+# 기존 YAML 파일 읽기
+- name: Read existing VPC ID from YAML file
+  slurp:
+    src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+  register: slurped_file
+  ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+- name: Set existing VPC data from slurped file
+  set_fact:
+    existing_vpc_data: >-
+      {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+        {{ slurped_file['content'] | b64decode | from_yaml }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  when: slurped_file is defined
+# VPC ID를 덮어씌우기 위한 데이터 준비
+- name: Prepare VPC data
+  set_fact:
+    vpc_data: "{{ existing_vpc_data | combine({'asgtg_arn': asg_tg_result.target_group_arn}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+- name: Save VPC ID to YAML file
+  copy:
+    content: "{{ vpc_data | to_nice_yaml }}"
+    dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+    mode: '0644'  # 파일 권한 설정
+
+#오토 스케일링 타겟그룹지정
+- name: Create ASG
+  amazon.aws.autoscaling_group:
+    name: team4-shop-asg
+    target_group_arns: "{{ asgtg_arn }}"
+    availability_zones: ['ap-northeast-2a','ap-northeast-2c']
+    launch_template:
+      launch_template_id: "{{ template_id }}"
+      version: '$Latest'
+    min_size: 2
+    max_size: 2
+    desired_capacity: 2
+    vpc_zone_identifier:
+      - "{{ pri2a_id }}"
+      - "{{ pri2c_id }}"
+    tags:
+      - Name: team4-shop-asg
+        propagate_at_launch: yes
+    state: present
+    region: "{{ region_name }}"
+  register: asg_result
+  tags: asg_gr
