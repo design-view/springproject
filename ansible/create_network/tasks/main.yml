@@ -1,0 +1,309 @@
+---
+# tasks file for create_network
+#vpc생성
+#
+#
+- name: Create VPC
+  ec2_vpc_net:
+    name: team4_VPC
+    cidr_block: 10.4.0.0/16
+    region: "{{ region_name }}"
+    state: present
+  register: vpc_result
+#결과 출력
+- name: Debug vpc result
+  debug:
+    var: vpc_result.vpc.id
+
+#변수에 담기
+# 기존 YAML 파일 읽기
+- name: Read existing VPC ID from YAML file
+  slurp:
+    src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+  register: slurped_file
+  ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+- name: Set existing VPC data from slurped file
+  set_fact:
+    existing_vpc_data: >-
+      {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+        {{ slurped_file['content'] | b64decode | from_yaml }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  when: slurped_file is defined
+# VPC ID를 덮어씌우기 위한 데이터 준비
+- name: Prepare VPC data
+  set_fact:
+    vpc_data: "{{ existing_vpc_data | combine({'vpcid': vpc_result.vpc.id}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+- name: Save VPC ID to YAML file
+  copy:
+    content: "{{ vpc_data | to_nice_yaml }}"
+    dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+    mode: '0644'  # 파일 권한 설정
+
+
+#인터넷 게이트웨이 생성
+- name: Create Internet Gateway
+  ec2_vpc_igw:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    region: "{{ region_name }}"
+    state: present
+    tags:
+      Name: team4_igw
+  register: igw_result
+
+#변수에 담기
+- name: debuh igw
+  debug:
+    var: igw_result
+#퍼블릭 서브넷1 생성
+- name: Create Public-2a Subnet
+  ec2_vpc_subnet:
+    cidr: 10.4.0.0/20
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    az: ap-northeast-2a
+    map_public: no
+    region: "{{ region_name }}"
+    state: present
+    tags:
+      Name: team4-subnet-public1-ap-northeast-2a
+  register: pub2a_sub_result
+
+#변수에 담기
+# 기존 YAML 파일 읽기
+- name: Read existing VPC ID from YAML file
+  slurp:
+    src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+  register: slurped_file
+  ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+- name: Set existing VPC data from slurped file
+  set_fact:
+    existing_vpc_data: >-
+      {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+        {{ slurped_file['content'] | b64decode | from_yaml }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  when: slurped_file is defined
+# VPC ID를 덮어씌우기 위한 데이터 준비
+- name: Prepare VPC data
+  set_fact:
+    vpc_data: "{{ existing_vpc_data | combine({'pub2a_id': pub2a_sub_result.subnet.id}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+- name: Save VPC ID to YAML file
+  copy:
+    content: "{{ vpc_data | to_nice_yaml }}"
+    dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+    mode: '0644'  # 파일 권한 설정
+
+#퍼블릭 서브넷2 생성
+- name: Create Public-2c Subnet
+  ec2_vpc_subnet:
+    cidr: 10.4.16.0/20
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    az: ap-northeast-2c
+    map_public: no
+    region: "{{ region_name }}"
+    state: present
+    tags:
+      Name: team4-subnet-public2-ap-northeast-2c
+  register: pub2c_sub_result
+
+#변수에 담기
+# 기존 YAML 파일 읽기
+- name: Read existing VPC ID from YAML file
+  slurp:
+    src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+  register: slurped_file
+  ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+- name: Set existing VPC data from slurped file
+  set_fact:
+    existing_vpc_data: >-
+      {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+        {{ slurped_file['content'] | b64decode | from_yaml }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  when: slurped_file is defined
+# VPC ID를 덮어씌우기 위한 데이터 준비
+- name: Prepare VPC data
+  set_fact:
+    vpc_data: "{{ existing_vpc_data | combine({'pub2c_id': pub2c_sub_result.subnet.id}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+- name: Save VPC ID to YAML file
+  copy:
+    content: "{{ vpc_data | to_nice_yaml }}"
+    dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+    mode: '0644'  # 파일 권한 설정
+
+
+#프라이빗 서브넷1 생성
+- name: Create Private-2a Subnet
+  ec2_vpc_subnet:
+    cidr: 10.4.64.0/20
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    az: ap-northeast-2a
+    map_public: no
+    region: "{{ region_name }}"
+    state: present
+    tags:
+      Name: team4-subnet-private1-ap-northeast-2a
+  register: pri2a_sub_result
+
+- name: debug pri2a
+  debug:
+    var: pri2a_sub_result
+
+
+#변수에 담기
+# 기존 YAML 파일 읽기
+- name: Read existing VPC ID from YAML file
+  slurp:
+    src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+  register: slurped_file
+  ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+- name: Set existing VPC data from slurped file
+  set_fact:
+    existing_vpc_data: >-
+      {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+        {{ slurped_file['content'] | b64decode | from_yaml }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  when: slurped_file is defined
+# VPC ID를 덮어씌우기 위한 데이터 준비
+- name: Prepare VPC data
+  set_fact:
+    vpc_data: "{{ existing_vpc_data | combine({'pri2a_id': pri2a_sub_result.subnet.id}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+- name: Save VPC ID to YAML file
+  copy:
+    content: "{{ vpc_data | to_nice_yaml }}"
+    dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+    mode: '0644'  # 파일 권한 설정
+
+
+#프라이빗 서브넷2 생성
+- name: Create Private-2c Subnet
+  ec2_vpc_subnet:
+    cidr: 10.4.80.0/20
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    az: ap-northeast-2c
+    map_public: no
+    region: "{{ region_name }}"
+    state: present
+    tags:
+      Name: team4-subnet-private2-ap-northeast-2c
+  register: pri2c_sub_result
+
+- name: debug pri2c
+  debug:
+    var: pri2c_sub_result
+
+#변수에 담기
+# 기존 YAML 파일 읽기
+- name: Read existing VPC ID from YAML file
+  slurp:
+    src: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+  register: slurped_file
+  ignore_errors: yes  # 파일이 없는 경우에도 오류를 무시합니다.
+
+# Base64로 인코딩된 내용을 디코딩하여 YAML로 변환
+- name: Set existing VPC data from slurped file
+  set_fact:
+    existing_vpc_data: >-
+      {%- if slurped_file is defined and slurped_file['content'] | b64decode | length > 0 -%}
+        {{ slurped_file['content'] | b64decode | from_yaml }}
+      {%- else -%}
+        {}
+      {%- endif -%}
+  when: slurped_file is defined
+# VPC ID를 덮어씌우기 위한 데이터 준비
+- name: Prepare VPC data
+  set_fact:
+    vpc_data: "{{ existing_vpc_data | combine({'pri2c_id': pri2c_sub_result.subnet.id}) }}"
+
+# YAML 데이터를 파일에 저장 (덮어씌우기)
+- name: Save VPC ID to YAML file
+  copy:
+    content: "{{ vpc_data | to_nice_yaml }}"
+    dest: "/home/ec2-user/role-ansible/vars/resultvar.yml"  # 원하는 파일 경로로 변경하세요.
+    mode: '0644'  # 파일 권한 설정
+
+
+
+#NAT 게이트웨이 생성
+- name: Create nat gw
+  ec2_vpc_nat_gateway:
+    state: present
+    subnet_id: "{{ pub2a_sub_result.subnet.id }}"
+    region: "{{ region_name }}"
+    if_exist_do_not_create: true
+    tags:
+      Name: team4-nat-gw
+  register: ngw_result
+
+
+- name: debug ngw
+  debug:
+    var: ngw_result
+
+#퍼블릭 라우팅 테이블 생성
+- name: Create public Routing Table
+  ec2_vpc_route_table:
+    tags:
+      Name: team4-rtb-public
+    vpc_id: "{{ vpc_result.vpc.id}}"
+    region: "{{ region_name }}"
+    state: present
+    subnets:
+      - "{{ pub2a_sub_result.subnet.id }}"
+      - "{{ pub2c_sub_result.subnet.id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ igw_result.gateway_id }}"
+      - dest: ::/0
+        gateway_id: "{{ igw_result.gateway_id }}"
+  register: pub_rtb_result
+
+#프라이빗 라우팅 테이블1 생성
+- name: Create Private-2a Routing Table
+  ec2_vpc_route_table:
+    tags:
+      Name: team4-rtb-private-ap-northeast-2a
+    vpc_id: "{{ vpc_result.vpc.id}}"
+    region: "{{ region_name }}"
+    state: present
+    subnets: "{{ pri2a_sub_result.subnet.id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ ngw_result.nat_gateway_id }}"
+  register: pri2a_rtb_result
+
+
+#프라이빗 라우팅 테이블2 생성
+- name: Create Private-2c Routing Table
+  ec2_vpc_route_table:
+    tags:
+      Name: team4-rtb-private-ap-northeast-2c
+    vpc_id: "{{ vpc_result.vpc.id}}"
+    region: "{{ region_name }}"
+    state: present
+    subnets: "{{ pri2c_sub_result.subnet.id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ ngw_result.nat_gateway_id }}"
+  register: pri2c_rtb_result
