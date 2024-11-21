@@ -29,6 +29,14 @@ public class SecurityConfig {
         //loginPage("") : 사용자로그인페이지
         //defaultSuccessUrl("/") : 로그인시 이동할 페이지 지정
         //loginProcessingUrl("/loginProc") : 사용자로그인페이지 form action속성값
+        http.formLogin(login->login.loginPage("/login_page")
+                .defaultSuccessUrl("/")
+                .loginProcessingUrl("/loginProc")
+                .failureUrl("/member/login/error")
+        );
+        http.logout((auth)->auth.logoutUrl("/logout")
+                .logoutSuccessUrl("/")
+        );
         //경로 권한지정
         http.authorizeHttpRequests((auth)->auth
                 .requestMatchers("/","/login_page","/login/error","/join_page","/emailcheck","/join","/item/**","/images/**").permitAll()
@@ -36,32 +44,8 @@ public class SecurityConfig {
                 .requestMatchers("/js/**","/css/**","/img/**").permitAll()
                 .anyRequest().authenticated()
         );
-        http.formLogin(login->login.loginPage("/login_page")
-                .defaultSuccessUrl("/")
-                .loginProcessingUrl("/loginProc")
-                .failureUrl("/login/error")
-        );
-        http.logout((auth)->auth.logoutUrl("/logout")
-                .logoutSuccessUrl("/")
-        );
-        
-
-        // CSRF 토큰 비활성화
-        http.csrf(cs -> cs.disable());
-
-        // 세션 관리 설정: 세션을 유지하도록 설정
-        //http.sessionManagement(session -> session
-              //  .sessionCreationPolicy(SessionCreationPolicy.ALWAYS)
-       // );
-         // 세션 관리
-        http.sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-        );
-        // 쿠키 설정: SameSite 설정을 None으로 설정하고, HTTPS 요구 사항 비활성화
-        http.requiresChannel(channel -> channel.anyRequest().requiresInsecure());
-
-        // CORS 설정 추가
-        http.cors(withDefaults());
+        //csrf토큰 체크 사용안함 설정
+        http.csrf(cs->cs.disable());
         return http.build();
     }
     @Bean

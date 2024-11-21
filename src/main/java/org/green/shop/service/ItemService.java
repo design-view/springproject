@@ -53,7 +53,7 @@ public interface ItemService {
                 .stockNumber(item.getStockNumber())
                 .price(item.getPrice())
                 .itemSellStatus(item.getItemSellStatus())
-                .imgUrl(itemimg.getImgUrl())
+                .imgUrl(itemimg.getOriImgName())
                 .build();
         return mainDTO;
     }
